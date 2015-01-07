@@ -18,14 +18,20 @@ import cv2
 import cv2.cv as cv
 import numpy as np
 import copy
-from PyCV.ImageManipulation import showimg,save,resizeimg
+from PyCV.ImageManipulation import newShowImg,save,resizeimg,getShape,makeCImg
 from PyUtils.csvHandler import csvHandler
 
 class iconCatalog(object):
+    """tracks each iOS device type with specifications for image asset types
+    Parameters:
+        name - project identifier
+        devices - 
+        
+    """
     def __init__(self,name):
         self.name = name
         self.devices = dict()
-        
+        self.sourceImages = dict()
     def makeIconsSet(self,image):
         sourceImg = cv2.imread(image)
         dirName = "%s iconSet" %self.name
@@ -57,27 +63,23 @@ class iconCatalog(object):
         return iconClasses
             
     def addIconRequirements(self,iconData):
+        """adds iconDetail objects to deviceAsset objects
+        """
         iconTypes = self.parseIconTypes(iconData.keys())
-        pp(iconTypes)
         for device in self.devices.itervalues():
             for icon in iconTypes:
-#                 pp(iconData[icon.description])
-#                 print device.position
                 specificIcon = copy.deepcopy(icon)
                 sizeDetail= iconData[specificIcon.description][device.position]
                 iconDetails=self.parseIconSizeDetail(sizeDetail)
                 specificIcon.setIconDetail(iconDetails)
                 device.addIcon(specificIcon)
-#                 icon.setSize(size(w,h))
-#                 device.addIcon(icon)
-    def debugGroup(self):
-        for device in self.devices.itervalues():
-            for icon in device.icons.itervalues():
-                print device.name,icon.name
-                if icon.detail!=None: print icon.detail.size.debug()
+
+
             
     def parseIconSizeDetail(self,detailString):
-        """
+        """ method to get icon size attributes from apples table in csv format
+        Returns array of iconDetailObjectcs for each specification per device icon
+        
         data details
         if singe line:
             /d[2-4] ' x ' /d[2-4]
@@ -138,22 +140,17 @@ class iconCatalog(object):
 #                 print detail,"no matching expression found"
                 detailArray.append(iconDetailItem)
         return detailArray
-    
-    def extractIconDetail(self,string,iconDetailItem):
-        
-        if "about" in string.lower():
-            iconDetailItem.importance = "approximate"
-        else:
-            iconDetailItem.importance = "absolute"
-        p = re.compile('^(\d{2,5})( x )(\d{2,5})$')
-        m = p.match(string)
-#         p = re.search(r'^(\d+)( x )(\d+)$',string)
-        if m !=None: print "only number %s" %m.group(1)
-        
-#         p = re.search(r'\(.*\)',string)
-#         if p !=None: print "brackets  %s" %p.group()
+
+
 
 class deviceAsset(object):
+    """Stores specification about each device
+    Parameters:
+        name - device name (iphone 6)
+        description - full device specification string
+        multiplier - icon resolution id (@2)
+        icons - dict of icon assets 
+    """
     def __init__(self,description,multiplier,position):
         self.name = description
         self.description=description
@@ -164,6 +161,12 @@ class deviceAsset(object):
         self.icons[icon.name]=icon
         
 class iconAsset(object):
+    """a type of image used by an ios device
+    e.g. app icon, launch image, appstore icon, etc
+    
+    Parameters:
+        keystring- the description of the icon which is parsed to determine the icons name and if its required or not
+    """
     _levels = ["optional","recommended","required"]
     
     def __init__(self,keyString):
@@ -179,19 +182,29 @@ class iconAsset(object):
         self.iconDetails = []
         self.detail=None
         self.multipleConfigs=False
+        self.needsImage = False
 #         print self.name,self.importance,self.level
         
     def setSize(self,sizeObject):
         self.size = sizeObject
+        
     def setIconDetail(self,detailArray):
+        """details of this icon class such as its size-and iconDetail object
+        """
         self.iconDetails=detailArray
         if len(detailArray) >1:
             self.multipleConfigs = True
-        else: self.detail = detailArray[0]
+        else: 
+            self.detail = detailArray[0]
+        for item in self.iconDetails:
+            if item.size != None:
+                self.needsImage=True
 
 class iconDetail(object):
+    """specifications for the image attributes of an icon
+    if size is None this icon is not an image
+    """
     _levels = ["approximate","absolute"]
-
 #    def __init__(self,size,maxsize = None,device=None,orientation=None,importance=None,notes=None):
 
     def __init__(self,fullDetail):
@@ -202,6 +215,7 @@ class iconDetail(object):
         self.notes=None
         self.device=None #phone version if specified
         self.orientation =None#orientation (portrait/landscape) if specified
+        self.image = None
         
 class size(object):
     def __init__(self,height,width):
@@ -214,13 +228,17 @@ class size(object):
     def debug(self):
         return "x:%d y:%d" %(self.height,self.width)
 #------------------------------------------------------------------------------ Helpers
-def testRE(string):
-#     print string
-    p = re.search(r'\d+( x )\d+',string)
-    if p !=None: print p.group()
 
-    p = re.search(r'\(.*\)',string)
-    if p !=None: print p.group()
+
+def resizeImage(img,shape=None):
+    return cv2.resize(img,shape,interpolation=cv2.INTER_CUBIC)
+
+def createIconSetForImage(imagePath):
+    mainImage = cv2.imread(imagePath,-1)
+    newShowImg(mainImage)
+    icon = resizeImage(mainImage,shape= (180,180))
+    save(icon,"180x180_th.png") 
+    newShowImg(icon)
     
 def extractBracketsFromString(someString,returnSplitString = False):
     if ("(" in someString) and (")" in someString):
@@ -229,66 +247,74 @@ def extractBracketsFromString(someString,returnSplitString = False):
         return content
     else:
         return None
-    
-
-def resizeImage(img,scale=1.0,shape=None):
-    return cv2.resize(img,shape,interpolation=cv2.INTER_CUBIC)
-
-def loadAssetDataCSV(csvPath):
-    keys = list()
-    csvH = csvHandler(keys, mode='r', outputfile=None, inputfile = csvPath, buffers = None) 
-    columnHeaders = csvH.readFirstLine()
-    csvData = csvH.readDataWithRowHeaders()
-    return columnHeaders,csvData
-
-def createIconSetForImage(imagePath):
-    mainImage = cv2.imread(imagePath,-1)
-    showimg(mainImage)
-    icon = resizeImage(mainImage,shape= (180,180))
-    save(icon,"180x180_th.png") 
-    showimg(icon)
-    
-
-    
-
-        
-def organizeIconRequirementData(dataHeader,data):
-    deviceClasses = dataHeader[1:]
-    deviceSizes = [extractBracketsFromString(x) for x in deviceClasses]
-    devices = []
-    index=0
-    for device,mult in zip(deviceClasses,deviceSizes):
-        devices.append(deviceAsset(device,mult,index))
-        index+=1
-    return devices
 
 def createIconSets():
     csvPath="appStoreIcons.csv"
-    headers,data = loadAssetDataCSV(csvPath)
-    icSet = iconCatalog("texasHoldem")
-    devices = organizeIconRequirementData(headers,data)
-    for device in devices:
-        icSet.addDevice(device)
-    print headers
-    pp(data)
+    keys = list()
+    csvH = csvHandler(keys, mode='r', outputfile=None, inputfile = csvPath, buffers = None) 
+    headers = csvH.readFirstLine()
+    data = csvH.readDataWithRowHeaders()
+    
+    icSet = iconCatalog("videoEditor")
+    deviceClasses = headers[1:]
+    deviceSizes = [extractBracketsFromString(x) for x in deviceClasses]
+    index=0
+    for device,mult in zip(deviceClasses,deviceSizes):
+        deviceObj = deviceAsset(device,mult,index)
+        icSet.addDevice(deviceObj)
+        index+=1
+        
     icSet.addIconRequirements(data)
     print '##################################################'
+    icSet.makeIconsSet("Farmeral_video-icon.png")
+    print 'All Icons SuccwhiteImgesfuly Created'
+
     return icSet
+
 #     icSet.debugGroup()
 #     icSet.parseIcons()
+def blankAlphaChannel(src,dst):
+    mainImage=src
+    x,y,z=getShape(mainImage)
+    whiteImg=makeCImg(x, y)
+
+    b,g,r,a = cv2.split(mainImage)
+    for i in range(x):
+        for j in range(y):
+            if a[i,j]==255:
+                whiteImg[i,j]=mainImage[i,j][:3]#copy color channels
+            elif a[i,j]==0:
+                whiteImg[i,j]=[255,255,255] #blank out transparency with white pixels
+    return whiteImg
+
+def changeBackgroundColor(imagePath):
+    mainImage = cv2.imread(imagePath,-1)
+    newShowImg(mainImage,'start')
+    x,y,z=getShape(mainImage)
+
+    whiteImg=makeCImg(x, y)
+    newImg=blankAlphaChannel(mainImage,whiteImg)
+
+
+
+    newShowImg(newImg, 'corrected 22 ')
+
+    newShowImg(whiteImg, 'corrected')
+#     white2 = cv2.cvtColor(whiteImg,cv2.COLOR_BGR2BGRA)
+#     newShowImg(white2,'bgra')
+#     pp(whiteImg[0,0])
+#     pp(white2[0,0])
+# 
+#     pp(mainImage[0,0])
+# 
+#     fromTo=( 0,0, 1,1, 2,2, 3,3)
+#     np.asarray(fromTo)
+#     cv2.mixChannels(mainImage,white2,[(1,0)])
+# #     whiteImg[:,:,:]=mainImage
+#     newShowImg(whiteImg, 'blank')
+#     save(icon,"180x180_th.png") 
 if __name__=="__main__":
-    mySet = createIconSets()
-#     for device in mySet.devices.itervalues():
-#         for icon in device.icons.itervalues():
-#             if icon.multipleConfigs == False:
-#                 if icon.detail.size != None:
-#                     imgName="%s_%s_(%dx%d)"%(icon.name,device.name,icon.detail.size.height,icon.detail.size.width)
-#                     print imgName
-#             else: pass
-    mySet.makeIconsSet("playing_card_suits.png")
-#     p6p=deviceAsset("iPhone 6 Plus (@3x)",3)
-#     p6=deviceAsset("iPhone 6 and iPhone 5 (@2x)",2)
-#     p4 = deviceAsset("iPhone 4s (@2x)",2)
-#     t1 = deviceAsset(" iPad and iPad mini (@2x)",2)
-#     t2 = deviceAsset("iPad 2 and iPad mini (@1x)",1)
-#     createIconSetForImage("playing_card_suits.png")
+    path = "Farmeral_video-icon.png"
+    path = "playing_card_suits.png"
+    changeBackgroundColor(path)
+#     mySet = createIconSets()
