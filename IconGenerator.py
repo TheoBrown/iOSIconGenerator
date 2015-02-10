@@ -19,6 +19,7 @@ import cv2.cv as cv
 import numpy as np
 import copy
 from PyCV.ImageManipulation import newShowImg,save,resizeimg,getShape,makeCImg
+from PyCV.Drawing import cleanchessimginterior
 from PyUtils.csvHandler import csvHandler
 
 class iconCatalog(object):
@@ -33,6 +34,7 @@ class iconCatalog(object):
         self.devices = dict()
         self.sourceImages = dict()
     def makeIconsSet(self,image):
+        self.forceLaunchImages(image)
         sourceImg = cv2.imread(image)
         dirName = "%s iconSet" %self.name
         if not exists(dirName): mkdir(dirName)
@@ -46,12 +48,26 @@ class iconCatalog(object):
                 if icon.multipleConfigs == False:
                     if icon.detail.size != None:
                         imgName="%s_%s_(%dx%d).png"%(icon.name,device.name,icon.detail.size.height,icon.detail.size.width)
-                        print imgName,icon.detail.size.getTup()
+#                         print imgName,icon.detail.size.getTup()
                         resizedImg=resizeImage(sourceImg, shape=icon.detail.size.getTup())
                         imgPath = deviceDir+"/"+imgName
                         save(resizedImg, imgPath)
                 else: pass
-                
+    def forceLaunchImages(self,image):
+        sourceImg = cv2.imread(image)
+
+        launchImgsDir="launchImgs"
+        imgs=[["iphone5","@2x","all",size(640,1136)],
+              ["iphone4s","@2x","all",size(640,960)]
+              ]
+        for stats in imgs:
+            print stats
+            thissize=stats[3]
+            imgName="launchImage__%s_%s_(%dx%d).png"%(stats[0],stats[1],thissize.height,thissize.width)
+            resizedImg=resizeImage(sourceImg, shape=thissize.getTup())
+            imgPath = imgName
+            save(resizedImg, imgPath)
+            print imgPath
     def addDevice(self,device):
         self.devices[device.name]= device
         
@@ -98,7 +114,7 @@ class iconCatalog(object):
 #         if len(detailLines) ==1:
         
         for detailLine in detailLines:
-#             print "LINE: %s" %detailLine
+            print "LINE: %s" %detailLine
             detail = detailLine.strip()
             iconDetailItem = iconDetail(detail)
             p = re.compile('^(\d{2,5})( x )(\d{2,5})$')
@@ -248,14 +264,14 @@ def extractBracketsFromString(someString,returnSplitString = False):
     else:
         return None
 
-def createIconSets():
+def createIconSets(project,imagePath):
     csvPath="appStoreIcons.csv"
     keys = list()
     csvH = csvHandler(keys, mode='r', outputfile=None, inputfile = csvPath, buffers = None) 
     headers = csvH.readFirstLine()
     data = csvH.readDataWithRowHeaders()
     
-    icSet = iconCatalog("videoEditor")
+    icSet = iconCatalog(project)
     deviceClasses = headers[1:]
     deviceSizes = [extractBracketsFromString(x) for x in deviceClasses]
     index=0
@@ -266,7 +282,7 @@ def createIconSets():
         
     icSet.addIconRequirements(data)
     print '##################################################'
-    icSet.makeIconsSet("Farmeral_video-icon.png")
+    icSet.makeIconsSet(imagePath)
     print 'All Icons SuccwhiteImgesfuly Created'
 
     return icSet
@@ -283,7 +299,7 @@ def blankAlphaChannel(src,dst):
         for j in range(y):
             if a[i,j]==255:
                 whiteImg[i,j]=mainImage[i,j][:3]#copy color channels
-            elif a[i,j]==0:
+            elif a[i,j]<=254:
                 whiteImg[i,j]=[255,255,255] #blank out transparency with white pixels
     return whiteImg
 
@@ -295,11 +311,20 @@ def changeBackgroundColor(imagePath):
     whiteImg=makeCImg(x, y)
     newImg=blankAlphaChannel(mainImage,whiteImg)
 
-
+    borderThickness=20
+    bColor=(255,255,255)
+    newImageBorder = cv2.copyMakeBorder(newImg,borderThickness,borderThickness,borderThickness,borderThickness,cv2.BORDER_CONSTANT,value =bColor )
+    borderThickness=10
+    bColor=(0,0,0)
+    newImageBorder2 = cv2.copyMakeBorder(newImageBorder,borderThickness,borderThickness,borderThickness,borderThickness,cv2.BORDER_CONSTANT,value =bColor )
 
     newShowImg(newImg, 'corrected 22 ')
 
-    newShowImg(whiteImg, 'corrected')
+    newShowImg(newImageBorder, 'newImageBorder')
+    newShowImg(newImageBorder2, 'newImageBorder2')
+#     save(newImageBorder,'VidEditicon.png')
+#     save(newImageBorder2,'VidEdit_blackborder.png')
+
 #     white2 = cv2.cvtColor(whiteImg,cv2.COLOR_BGR2BGRA)
 #     newShowImg(white2,'bgra')
 #     pp(whiteImg[0,0])
@@ -315,6 +340,8 @@ def changeBackgroundColor(imagePath):
 #     save(icon,"180x180_th.png") 
 if __name__=="__main__":
     path = "Farmeral_video-icon.png"
-    path = "playing_card_suits.png"
-    changeBackgroundColor(path)
-#     mySet = createIconSets()
+#     path = "playing_card_suits.png"
+    newTHIcon="THicon_blackborder.png"
+    path  = "/media/dante/WorkingData/workspace/PlayingCardPickerDataStats/color player 0_screenshot_testSquareIcon.png"
+#     changeBackgroundColor(path)
+    mySet = createIconSets("texasHoldem_statsimg2",path)
