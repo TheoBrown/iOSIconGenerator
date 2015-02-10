@@ -19,7 +19,6 @@ import cv2.cv as cv
 import numpy as np
 import copy
 from PyCV.ImageManipulation import newShowImg,save,resizeimg,getShape,makeCImg
-from PyCV.Drawing import cleanchessimginterior
 from PyUtils.csvHandler import csvHandler
 
 class iconCatalog(object):
@@ -53,6 +52,7 @@ class iconCatalog(object):
                         imgPath = deviceDir+"/"+imgName
                         save(resizedImg, imgPath)
                 else: pass
+                
     def forceLaunchImages(self,image):
         sourceImg = cv2.imread(image)
 
@@ -68,6 +68,7 @@ class iconCatalog(object):
             imgPath = imgName
             save(resizedImg, imgPath)
             print imgPath
+            
     def addDevice(self,device):
         self.devices[device.name]= device
         
@@ -157,8 +158,6 @@ class iconCatalog(object):
                 detailArray.append(iconDetailItem)
         return detailArray
 
-
-
 class deviceAsset(object):
     """Stores specification about each device
     Parameters:
@@ -173,6 +172,7 @@ class deviceAsset(object):
         self.multiplier=multiplier
         self.position = position
         self.icons = dict()
+        
     def addIcon(self,icon):
         self.icons[icon.name]=icon
         
@@ -243,26 +243,7 @@ class size(object):
         return (self.x,self.y)
     def debug(self):
         return "x:%d y:%d" %(self.height,self.width)
-#------------------------------------------------------------------------------ Helpers
-
-
-def resizeImage(img,shape=None):
-    return cv2.resize(img,shape,interpolation=cv2.INTER_CUBIC)
-
-def createIconSetForImage(imagePath):
-    mainImage = cv2.imread(imagePath,-1)
-    newShowImg(mainImage)
-    icon = resizeImage(mainImage,shape= (180,180))
-    save(icon,"180x180_th.png") 
-    newShowImg(icon)
-    
-def extractBracketsFromString(someString,returnSplitString = False):
-    if ("(" in someString) and (")" in someString):
-        content = someString.split("(")[-1].split(")")[0]
-        print content
-        return content
-    else:
-        return None
+#------------------------------------------------------------------------------ Main Script
 
 def createIconSets(project,imagePath):
     csvPath="appStoreIcons.csv"
@@ -281,67 +262,22 @@ def createIconSets(project,imagePath):
         index+=1
         
     icSet.addIconRequirements(data)
-    print '##################################################'
     icSet.makeIconsSet(imagePath)
-    print 'All Icons SuccwhiteImgesfuly Created'
-
+    print 'All Icons Successfully Created'
     return icSet
 
-#     icSet.debugGroup()
-#     icSet.parseIcons()
-def blankAlphaChannel(src,dst):
-    mainImage=src
-    x,y,z=getShape(mainImage)
-    whiteImg=makeCImg(x, y)
+#------------------------------------------------------------------------------ Utility Methods
+def resizeImage(img,shape):
+    return cv2.resize(img,shape,interpolation=cv2.INTER_CUBIC)
 
-    b,g,r,a = cv2.split(mainImage)
-    for i in range(x):
-        for j in range(y):
-            if a[i,j]==255:
-                whiteImg[i,j]=mainImage[i,j][:3]#copy color channels
-            elif a[i,j]<=254:
-                whiteImg[i,j]=[255,255,255] #blank out transparency with white pixels
-    return whiteImg
-
-def changeBackgroundColor(imagePath):
-    mainImage = cv2.imread(imagePath,-1)
-    newShowImg(mainImage,'start')
-    x,y,z=getShape(mainImage)
-
-    whiteImg=makeCImg(x, y)
-    newImg=blankAlphaChannel(mainImage,whiteImg)
-
-    borderThickness=20
-    bColor=(255,255,255)
-    newImageBorder = cv2.copyMakeBorder(newImg,borderThickness,borderThickness,borderThickness,borderThickness,cv2.BORDER_CONSTANT,value =bColor )
-    borderThickness=10
-    bColor=(0,0,0)
-    newImageBorder2 = cv2.copyMakeBorder(newImageBorder,borderThickness,borderThickness,borderThickness,borderThickness,cv2.BORDER_CONSTANT,value =bColor )
-
-    newShowImg(newImg, 'corrected 22 ')
-
-    newShowImg(newImageBorder, 'newImageBorder')
-    newShowImg(newImageBorder2, 'newImageBorder2')
-#     save(newImageBorder,'VidEditicon.png')
-#     save(newImageBorder2,'VidEdit_blackborder.png')
-
-#     white2 = cv2.cvtColor(whiteImg,cv2.COLOR_BGR2BGRA)
-#     newShowImg(white2,'bgra')
-#     pp(whiteImg[0,0])
-#     pp(white2[0,0])
-# 
-#     pp(mainImage[0,0])
-# 
-#     fromTo=( 0,0, 1,1, 2,2, 3,3)
-#     np.asarray(fromTo)
-#     cv2.mixChannels(mainImage,white2,[(1,0)])
-# #     whiteImg[:,:,:]=mainImage
-#     newShowImg(whiteImg, 'blank')
-#     save(icon,"180x180_th.png") 
+def extractBracketsFromString(someString,returnSplitString = False):
+    if ("(" in someString) and (")" in someString):
+        content = someString.split("(")[-1].split(")")[0]
+        print content
+        return content
+    else:
+        return None
+    
 if __name__=="__main__":
-    path = "Farmeral_video-icon.png"
-#     path = "playing_card_suits.png"
     newTHIcon="THicon_blackborder.png"
-    path  = "/media/dante/WorkingData/workspace/PlayingCardPickerDataStats/color player 0_screenshot_testSquareIcon.png"
-#     changeBackgroundColor(path)
-    mySet = createIconSets("texasHoldem_statsimg2",path)
+    mySet = createIconSets("texasHoldem_statsimg2",newTHIcon)
